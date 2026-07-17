@@ -29,3 +29,14 @@ func (n *Node) BecomeCandidate() {
 	n.State = Candidate
 	n.Term++
 }
+
+// a node/candidate will become leader in same trem, so no bump
+func (n *Node) BecomeLeader() {
+	n.State = Leader
+}
+
+// a flwr needs to update its term number to current term number proposed
+func (n *Node) BecomeFollower(term int) {
+	n.State = Follower
+	n.Term = term
+}
