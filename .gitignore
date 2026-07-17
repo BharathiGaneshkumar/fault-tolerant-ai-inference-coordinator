@@ -1,0 +1,21 @@
+# Binaries
+/bin/
+*.exe
+*.out
+
+# Go build/test artifacts
+*.test
+*.prof
+
+# Dependency directories
+vendor/
+
+# Environment/local config
+.env
+
+# IDE
+.vscode/
+*.swp
+
+# OS
+.DS_Store
