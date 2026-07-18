@@ -1,9 +1,11 @@
 package raft
 
 type RequestVoteMsg struct {
-	CandidateID int
-	Term        int
-	ReplyChan   chan RequestVoteReply
+	CandidateID  int
+	Term         int
+	LastLogIndex int
+	LastLogTerm  int
+	ReplyChan    chan RequestVoteReply
 }
 
 type RequestVoteReply struct {

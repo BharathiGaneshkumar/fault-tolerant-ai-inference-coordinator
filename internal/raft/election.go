@@ -34,7 +34,16 @@ func (n *Node) HandleRequestVote(msg RequestVoteMsg) {
 		n.BecomeFollower(msg.Term)
 	}
 
-	if msg.Term >= n.Term && (n.VotedFor == 0 || n.VotedFor == msg.CandidateID) {
+	myLastLogIndex := len(n.Log)
+	myLastLogTerm := 0
+	if myLastLogIndex > 0 {
+		myLastLogTerm = n.Log[myLastLogIndex-1].Term
+	}
+
+	logIsUpToDate := msg.LastLogTerm > myLastLogTerm ||
+		(msg.LastLogTerm == myLastLogTerm && msg.LastLogIndex >= myLastLogIndex)
+
+	if msg.Term >= n.Term && (n.VotedFor == 0 || n.VotedFor == msg.CandidateID) && logIsUpToDate {
 		voteGranted = true
 		n.VotedFor = msg.CandidateID
 	}
@@ -50,15 +59,23 @@ func (n *Node) HandleRequestVote(msg RequestVoteMsg) {
 func StartElection(n *Node, peers []Peer) bool {
 	n.BecomeCandidate()
 
+	lastLogIndex := len(n.Log)
+	lastLogTerm := 0
+	if lastLogIndex > 0 {
+		lastLogTerm = n.Log[lastLogIndex-1].Term
+	}
+
 	replies := make(chan RequestVoteReply, len(peers))
 
 	for _, peer := range peers {
 		go func(p Peer) {
 			replyChan := make(chan RequestVoteReply, 1)
 			msg := RequestVoteMsg{
-				CandidateID: n.ID,
-				Term:        n.Term,
-				ReplyChan:   replyChan,
+				CandidateID:  n.ID,
+				Term:         n.Term,
+				LastLogIndex: lastLogIndex,
+				LastLogTerm:  lastLogTerm,
+				ReplyChan:    replyChan,
 			}
 			p.VoteInbox <- msg
 			reply := <-replyChan
