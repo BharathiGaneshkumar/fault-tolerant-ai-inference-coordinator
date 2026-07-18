@@ -47,3 +47,27 @@ func (n *Node) HandleRequestVote(msg RequestVoteMsg) {
 
 	msg.ReplyChan <- reply
 }
+func StartElection(n *Node, peers []Peer) bool {
+	n.BecomeCandidate()
+
+	for _, peer := range peers {
+		replyChan := make(chan RequestVoteReply, 1)
+		msg := RequestVoteMsg{
+			CandidateID: n.ID,
+			Term:        n.Term,
+			ReplyChan:   replyChan,
+		}
+		peer.Inbox <- msg
+
+		reply := <-replyChan
+		if reply.VoteGranted {
+			won := n.ReceiveVote()
+			if won {
+				n.BecomeLeader()
+				return true
+			}
+		}
+	}
+
+	return false
+}

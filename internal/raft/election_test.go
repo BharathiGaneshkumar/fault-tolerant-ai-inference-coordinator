@@ -97,3 +97,27 @@ func TestHandleRequestVote_StepsDownOnHigherTerm(t *testing.T) {
 		t.Errorf("expected vote granted after stepping down")
 	}
 }
+func TestStartElection_WinsWithSinglePeerVote(t *testing.T) {
+	candidate := NewNode(1, 2) // 2-node cluster, majority = 2
+
+	peerNode := NewNode(2, 2)
+	peerInbox := make(chan RequestVoteMsg)
+
+	go func() {
+		msg := <-peerInbox
+		peerNode.HandleRequestVote(msg)
+	}()
+
+	peers := []Peer{
+		{ID: 2, Inbox: peerInbox},
+	}
+
+	won := StartElection(candidate, peers)
+
+	if !won {
+		t.Errorf("expected candidate to win election")
+	}
+	if candidate.State != Leader {
+		t.Errorf("expected candidate state Leader, got %v", candidate.State)
+	}
+}

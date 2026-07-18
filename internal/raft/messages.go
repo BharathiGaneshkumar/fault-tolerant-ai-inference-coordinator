@@ -11,3 +11,7 @@ type RequestVoteReply struct {
 	Term        int
 	VoteGranted bool
 }
+type Peer struct {
+	ID    int
+	Inbox chan RequestVoteMsg
+}
