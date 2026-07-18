@@ -1,5 +1,7 @@
 package raft
 
+import "time"
+
 func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) {
 	success := false
 
@@ -74,4 +76,17 @@ func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 	}
 
 	return false
+}
+func RunLeaderHeartbeatLoop(n *Node, peers []Peer, stop chan bool) {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			SendAppendEntries(n, peers, []LogEntry{})
+		case <-stop:
+			return
+		}
+	}
 }

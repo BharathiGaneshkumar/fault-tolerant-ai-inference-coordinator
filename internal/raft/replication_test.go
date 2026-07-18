@@ -1,6 +1,9 @@
 package raft
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestHandleAppendEntries_AcceptsFirstEntry(t *testing.T) {
 	n := NewNode(1, 5)
@@ -107,5 +110,44 @@ func TestHandleAppendEntries_TruncatesConflictingTail(t *testing.T) {
 	}
 	if n.Log[2].Command != "new-c" {
 		t.Errorf("expected entry 3 to be new-c, got %v", n.Log[2].Command)
+	}
+}
+func TestRunLeaderHeartbeatLoop_SendsHeartbeatsAndStops(t *testing.T) {
+	leader := NewNode(1, 3)
+
+	var peers []Peer
+	for id := 2; id <= 3; id++ {
+		peerNode := NewNode(id, 3)
+		appendInbox := make(chan AppendEntriesMsg)
+
+		go func(pn *Node, inbox chan AppendEntriesMsg) {
+			for {
+				msg, ok := <-inbox
+				if !ok {
+					return
+				}
+				pn.HandleAppendEntries(msg)
+			}
+		}(peerNode, appendInbox)
+
+		peers = append(peers, Peer{ID: id, AppendInbox: appendInbox})
+	}
+
+	stop := make(chan bool)
+	done := make(chan bool)
+
+	go func() {
+		RunLeaderHeartbeatLoop(leader, peers, stop)
+		done <- true
+	}()
+
+	time.Sleep(160 * time.Millisecond) // let it tick ~3 times
+	stop <- true
+
+	select {
+	case <-done:
+		// loop exited cleanly
+	case <-time.After(1 * time.Second):
+		t.Errorf("heartbeat loop did not stop in time")
 	}
 }
