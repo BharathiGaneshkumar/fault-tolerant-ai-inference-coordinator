@@ -60,7 +60,7 @@ func StartElection(n *Node, peers []Peer) bool {
 				Term:        n.Term,
 				ReplyChan:   replyChan,
 			}
-			p.Inbox <- msg
+			p.VoteInbox <- msg
 			reply := <-replyChan
 			replies <- reply
 		}(peer)

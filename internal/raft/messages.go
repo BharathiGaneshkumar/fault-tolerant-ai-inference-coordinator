@@ -12,8 +12,9 @@ type RequestVoteReply struct {
 	VoteGranted bool
 }
 type Peer struct {
-	ID    int
-	Inbox chan RequestVoteMsg
+	ID          int
+	VoteInbox   chan RequestVoteMsg
+	AppendInbox chan AppendEntriesMsg
 }
 type LogEntry struct {
 	Term    int

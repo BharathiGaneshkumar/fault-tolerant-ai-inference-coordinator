@@ -26,6 +26,36 @@ func TestHandleAppendEntries_AcceptsFirstEntry(t *testing.T) {
 		t.Errorf("expected log length 1, got %v", len(n.Log))
 	}
 }
+func TestSendAppendEntries_ReplicatesAndCommits(t *testing.T) {
+	leader := NewNode(1, 3) // 3-node cluster, majority = 2
+
+	var peers []Peer
+
+	for id := 2; id <= 3; id++ {
+		peerNode := NewNode(id, 3)
+		appendInbox := make(chan AppendEntriesMsg)
+
+		go func(pn *Node, inbox chan AppendEntriesMsg) {
+			msg := <-inbox
+			pn.HandleAppendEntries(msg)
+		}(peerNode, appendInbox)
+
+		peers = append(peers, Peer{ID: id, AppendInbox: appendInbox})
+	}
+
+	entries := []LogEntry{{Term: leader.Term, Command: "x=1"}}
+	success := SendAppendEntries(leader, peers, entries)
+
+	if !success {
+		t.Errorf("expected replication to succeed with majority")
+	}
+	if leader.CommitIndex != 1 {
+		t.Errorf("expected CommitIndex 1, got %v", leader.CommitIndex)
+	}
+	if len(leader.Log) != 1 {
+		t.Errorf("expected leader log length 1, got %v", len(leader.Log))
+	}
+}
 
 func TestHandleAppendEntries_RejectsStaleTerm(t *testing.T) {
 	n := NewNode(1, 5)

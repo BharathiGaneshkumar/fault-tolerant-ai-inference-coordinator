@@ -109,7 +109,7 @@ func TestStartElection_WinsWithSinglePeerVote(t *testing.T) {
 	}()
 
 	peers := []Peer{
-		{ID: 2, Inbox: peerInbox},
+		{ID: 2, VoteInbox: peerInbox},
 	}
 
 	won := StartElection(candidate, peers)
@@ -135,7 +135,7 @@ func TestStartElection_WinsWithMultiplePeers(t *testing.T) {
 			pn.HandleRequestVote(msg)
 		}(peerNode, peerInbox)
 
-		peers = append(peers, Peer{ID: id, Inbox: peerInbox})
+		peers = append(peers, Peer{ID: id, VoteInbox: peerInbox})
 	}
 
 	won := StartElection(candidate, peers)
