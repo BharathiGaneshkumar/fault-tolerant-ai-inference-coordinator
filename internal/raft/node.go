@@ -15,6 +15,8 @@ type Node struct {
 	ClusterSize   int
 	VotesReceived int
 	VotedFor      int
+	Log           []LogEntry
+	CommitIndex   int
 }
 
 // every node that we create nneds to first be a follower and start with term 0 and size of the whole cluster

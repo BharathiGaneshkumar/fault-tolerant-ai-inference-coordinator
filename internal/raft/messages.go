@@ -15,3 +15,23 @@ type Peer struct {
 	ID    int
 	Inbox chan RequestVoteMsg
 }
+type LogEntry struct {
+	Term    int
+	Command string
+}
+
+type AppendEntriesMsg struct {
+	LeaderID     int
+	Term         int
+	PrevLogIndex int
+	PrevLogTerm  int
+	Entries      []LogEntry
+	LeaderCommit int
+	ReplyChan    chan AppendEntriesReply
+}
+
+type AppendEntriesReply struct {
+	FollowerID int
+	Term       int
+	Success    bool
+}
