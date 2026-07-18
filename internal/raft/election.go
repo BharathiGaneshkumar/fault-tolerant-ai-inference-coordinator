@@ -12,13 +12,17 @@ func randomElectionTimeout() time.Duration {
 }
 
 func RunFollowerLoop(n *Node, inbox chan string) {
-	timeout := time.After(randomElectionTimeout())
+	for {
+		timeout := time.After(randomElectionTimeout())
 
-	select {
-	case msg := <-inbox:
-		fmt.Println("received heartbeat:", msg)
-	case <-timeout:
-		fmt.Println("election timeout fired, becoming candidate")
-		n.BecomeCandidate()
+		select {
+		case msg := <-inbox:
+			fmt.Println("received heartbeat:", msg)
+			// loop again, timeout resets naturally since we're back at top
+		case <-timeout:
+			fmt.Println("election timeout fired, becoming candidate")
+			n.BecomeCandidate()
+			return // exit the loop, we're no longer a follower
+		}
 	}
 }

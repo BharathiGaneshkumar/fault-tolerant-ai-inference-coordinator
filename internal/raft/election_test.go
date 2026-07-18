@@ -17,15 +17,16 @@ func TestRandomElectionTimeout(t *testing.T) {
 	}
 }
 
-func TestRunFollowerLoop_HeartbeatReceived(t *testing.T) {
+func TestRunFollowerLoop_MultipleHeartbeatsThenTimeout(t *testing.T) {
 	n := NewNode(1, 5)
-	inbox := make(chan string, 1)
-	inbox <- "heartbeat from leader"
+	inbox := make(chan string, 2)
+	inbox <- "heartbeat 1"
+	inbox <- "heartbeat 2"
 
 	RunFollowerLoop(n, inbox)
 
-	if n.State != Follower {
-		t.Errorf("expected state to remain Follower, got %v", n.State)
+	if n.State != Candidate {
+		t.Errorf("expected state Candidate after heartbeats + eventual timeout, got %v", n.State)
 	}
 }
 
