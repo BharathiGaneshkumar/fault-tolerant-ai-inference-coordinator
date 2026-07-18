@@ -121,3 +121,32 @@ func TestStartElection_WinsWithSinglePeerVote(t *testing.T) {
 		t.Errorf("expected candidate state Leader, got %v", candidate.State)
 	}
 }
+func TestStartElection_WinsWithMultiplePeers(t *testing.T) {
+	candidate := NewNode(1, 5) // 5-node cluster, majority = 3
+
+	var peers []Peer
+
+	for id := 2; id <= 5; id++ {
+		peerNode := NewNode(id, 5)
+		peerInbox := make(chan RequestVoteMsg)
+
+		go func(pn *Node, inbox chan RequestVoteMsg) {
+			msg := <-inbox
+			pn.HandleRequestVote(msg)
+		}(peerNode, peerInbox)
+
+		peers = append(peers, Peer{ID: id, Inbox: peerInbox})
+	}
+
+	won := StartElection(candidate, peers)
+
+	if !won {
+		t.Errorf("expected candidate to win election with 4 peers")
+	}
+	if candidate.State != Leader {
+		t.Errorf("expected candidate state Leader, got %v", candidate.State)
+	}
+	if candidate.VotesReceived < 3 {
+		t.Errorf("expected at least 3 votes (majority), got %v", candidate.VotesReceived)
+	}
+}

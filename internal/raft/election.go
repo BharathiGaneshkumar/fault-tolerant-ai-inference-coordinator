@@ -50,16 +50,24 @@ func (n *Node) HandleRequestVote(msg RequestVoteMsg) {
 func StartElection(n *Node, peers []Peer) bool {
 	n.BecomeCandidate()
 
-	for _, peer := range peers {
-		replyChan := make(chan RequestVoteReply, 1)
-		msg := RequestVoteMsg{
-			CandidateID: n.ID,
-			Term:        n.Term,
-			ReplyChan:   replyChan,
-		}
-		peer.Inbox <- msg
+	replies := make(chan RequestVoteReply, len(peers))
 
-		reply := <-replyChan
+	for _, peer := range peers {
+		go func(p Peer) {
+			replyChan := make(chan RequestVoteReply, 1)
+			msg := RequestVoteMsg{
+				CandidateID: n.ID,
+				Term:        n.Term,
+				ReplyChan:   replyChan,
+			}
+			p.Inbox <- msg
+			reply := <-replyChan
+			replies <- reply
+		}(peer)
+	}
+
+	for i := 0; i < len(peers); i++ {
+		reply := <-replies
 		if reply.VoteGranted {
 			won := n.ReceiveVote()
 			if won {
