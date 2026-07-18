@@ -26,3 +26,24 @@ func RunFollowerLoop(n *Node, inbox chan string) {
 		}
 	}
 }
+
+func (n *Node) HandleRequestVote(msg RequestVoteMsg) {
+	voteGranted := false
+
+	if msg.Term > n.Term {
+		n.BecomeFollower(msg.Term)
+	}
+
+	if msg.Term >= n.Term && (n.VotedFor == 0 || n.VotedFor == msg.CandidateID) {
+		voteGranted = true
+		n.VotedFor = msg.CandidateID
+	}
+
+	reply := RequestVoteReply{
+		VoterID:     n.ID,
+		Term:        n.Term,
+		VoteGranted: voteGranted,
+	}
+
+	msg.ReplyChan <- reply
+}

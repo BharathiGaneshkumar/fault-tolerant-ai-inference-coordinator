@@ -14,6 +14,7 @@ type Node struct {
 	Term          int
 	ClusterSize   int
 	VotesReceived int
+	VotedFor      int
 }
 
 // every node that we create nneds to first be a follower and start with term 0 and size of the whole cluster
@@ -44,6 +45,7 @@ func (n *Node) BecomeLeader() {
 func (n *Node) BecomeFollower(term int) {
 	n.State = Follower
 	n.Term = term
+	n.VotedFor = 0
 }
 
 func (n *Node) ReceiveVote() bool {
