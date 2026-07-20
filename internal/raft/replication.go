@@ -35,33 +35,51 @@ func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) {
 func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 	n.Log = append(n.Log, entries...)
 
-	prevLogIndex := len(n.Log) - len(entries)
-	prevLogTerm := 0
-	if prevLogIndex > 0 {
-		prevLogTerm = n.Log[prevLogIndex-1].Term
-	}
-
 	replies := make(chan AppendEntriesReply, len(peers))
 
 	for _, peer := range peers {
 		go func(p Peer) {
-			replyChan := make(chan AppendEntriesReply, 1)
-			msg := AppendEntriesMsg{
-				LeaderID:     n.ID,
-				Term:         n.Term,
-				PrevLogIndex: prevLogIndex,
-				PrevLogTerm:  prevLogTerm,
-				Entries:      entries,
-				LeaderCommit: n.CommitIndex,
-				ReplyChan:    replyChan,
+			for {
+				nextIdx := n.NextIndex[p.ID]
+				if nextIdx == 0 {
+					nextIdx = 1
+				}
+				prevLogIndex := nextIdx - 1
+				prevLogTerm := 0
+				if prevLogIndex > 0 {
+					prevLogTerm = n.Log[prevLogIndex-1].Term
+				}
+				entriesToSend := n.Log[prevLogIndex:]
+
+				replyChan := make(chan AppendEntriesReply, 1)
+				msg := AppendEntriesMsg{
+					LeaderID:     n.ID,
+					Term:         n.Term,
+					PrevLogIndex: prevLogIndex,
+					PrevLogTerm:  prevLogTerm,
+					Entries:      entriesToSend,
+					LeaderCommit: n.CommitIndex,
+					ReplyChan:    replyChan,
+				}
+				p.AppendInbox <- msg
+				reply := <-replyChan
+
+				if reply.Success {
+					n.MatchIndex[p.ID] = len(n.Log)
+					n.NextIndex[p.ID] = len(n.Log) + 1
+					replies <- reply
+					return
+				}
+
+				n.NextIndex[p.ID]--
+				if n.NextIndex[p.ID] < 1 {
+					n.NextIndex[p.ID] = 1
+				}
 			}
-			p.AppendInbox <- msg
-			reply := <-replyChan
-			replies <- reply
 		}(peer)
 	}
 
-	successCount := 1 // leader itself counts
+	successCount := 1
 	for i := 0; i < len(peers); i++ {
 		reply := <-replies
 		if reply.Success {
