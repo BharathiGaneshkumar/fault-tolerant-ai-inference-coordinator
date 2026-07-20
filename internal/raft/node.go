@@ -17,6 +17,8 @@ type Node struct {
 	VotedFor      int
 	Log           []LogEntry
 	CommitIndex   int
+	NextIndex     map[int]int
+	MatchIndex    map[int]int
 }
 
 // every node that we create nneds to first be a follower and start with term 0 and size of the whole cluster
@@ -26,6 +28,8 @@ func NewNode(id int, clusterSize int) *Node {
 		State:       Follower,
 		Term:        0,
 		ClusterSize: clusterSize,
+		NextIndex:   make(map[int]int),
+		MatchIndex:  make(map[int]int),
 	}
 }
 
@@ -39,8 +43,12 @@ func (n *Node) BecomeCandidate() {
 }
 
 // a node/candidate will become leader in same trem, so no bump
-func (n *Node) BecomeLeader() {
+func (n *Node) BecomeLeader(peerIDs []int) {
 	n.State = Leader
+	for _, id := range peerIDs {
+		n.NextIndex[id] = len(n.Log) + 1
+		n.MatchIndex[id] = 0
+	}
 }
 
 // a flwr needs to update its term number to current term number proposed

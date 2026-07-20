@@ -88,7 +88,11 @@ func StartElection(n *Node, peers []Peer) bool {
 		if reply.VoteGranted {
 			won := n.ReceiveVote()
 			if won {
-				n.BecomeLeader()
+				var peerIDs []int
+				for _, p := range peers {
+					peerIDs = append(peerIDs, p.ID)
+				}
+				n.BecomeLeader(peerIDs)
 				return true
 			}
 		}

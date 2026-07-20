@@ -17,7 +17,7 @@ func TestBecomeCandidate(t *testing.T) {
 func TestBecomeLeader(t *testing.T) {
 	n := NewNode(1, 5)
 	n.BecomeCandidate() // term becomes 1
-	n.BecomeLeader()
+	n.BecomeLeader([]int{2, 3})
 
 	if n.State != Leader {
 		t.Errorf("expected state Leader, got %v", n.State)
