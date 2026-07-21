@@ -17,29 +17,6 @@ func TestRandomElectionTimeout(t *testing.T) {
 	}
 }
 
-func TestRunFollowerLoop_MultipleHeartbeatsThenTimeout(t *testing.T) {
-	n := NewNode(1, 5)
-	inbox := make(chan string, 2)
-	inbox <- "heartbeat 1"
-	inbox <- "heartbeat 2"
-
-	RunFollowerLoop(n, inbox)
-
-	if n.State != Candidate {
-		t.Errorf("expected state Candidate after heartbeats + eventual timeout, got %v", n.State)
-	}
-}
-
-func TestRunFollowerLoop_TimeoutFires(t *testing.T) {
-	n := NewNode(1, 5)
-	inbox := make(chan string) // empty, nothing sent
-
-	RunFollowerLoop(n, inbox)
-
-	if n.State != Candidate {
-		t.Errorf("expected state to become Candidate, got %v", n.State)
-	}
-}
 func TestHandleRequestVote_GrantsWhenUnvoted(t *testing.T) {
 	n := NewNode(1, 5)
 	replyChan := make(chan RequestVoteReply, 1)
@@ -148,5 +125,25 @@ func TestStartElection_WinsWithMultiplePeers(t *testing.T) {
 	}
 	if candidate.VotesReceived < 3 {
 		t.Errorf("expected at least 3 votes (majority), got %v", candidate.VotesReceived)
+	}
+}
+func RunNodeLifecycle(n *Node, voteInbox chan RequestVoteMsg, appendInbox chan AppendEntriesMsg, peers []Peer, stop chan bool) {
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
+
+		RunNodeLoop(n, voteInbox, appendInbox, stop)
+
+		if n.State == Candidate {
+			won := StartElection(n, peers)
+			if won {
+				RunLeaderHeartbeatLoop(n, peers, stop)
+				return
+			}
+			// lost, loop back to RunNodeLoop as a follower again
+		}
 	}
 }

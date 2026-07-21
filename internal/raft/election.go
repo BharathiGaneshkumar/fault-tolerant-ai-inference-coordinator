@@ -11,18 +11,25 @@ func randomElectionTimeout() time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-func RunFollowerLoop(n *Node, inbox chan string) {
+func RunNodeLoop(n *Node, voteInbox chan RequestVoteMsg, appendInbox chan AppendEntriesMsg, stop chan bool) {
 	for {
+		if n.State == Leader {
+			return // leader uses heartbeat loop instead, not this election loop
+		}
+
 		timeout := time.After(randomElectionTimeout())
 
 		select {
-		case msg := <-inbox:
-			fmt.Println("received heartbeat:", msg)
-			// loop again, timeout resets naturally since we're back at top
+		case msg := <-voteInbox:
+			n.HandleRequestVote(msg)
+		case msg := <-appendInbox:
+			n.HandleAppendEntries(msg)
 		case <-timeout:
-			fmt.Println("election timeout fired, becoming candidate")
+			fmt.Println("node", n.ID, "election timeout fired, becoming candidate")
 			n.BecomeCandidate()
-			return // exit the loop, we're no longer a follower
+			return
+		case <-stop:
+			return
 		}
 	}
 }
@@ -92,6 +99,7 @@ func StartElection(n *Node, peers []Peer) bool {
 				for _, p := range peers {
 					peerIDs = append(peerIDs, p.ID)
 				}
+				fmt.Println("node", n.ID, "won the election, becoming leader for term", n.Term)
 				n.BecomeLeader(peerIDs)
 				return true
 			}

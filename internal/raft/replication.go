@@ -40,7 +40,9 @@ func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 	for _, peer := range peers {
 		go func(p Peer) {
 			for {
+				n.mu.Lock()
 				nextIdx := n.NextIndex[p.ID]
+				n.mu.Unlock()
 				if nextIdx == 0 {
 					nextIdx = 1
 				}
@@ -63,18 +65,21 @@ func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 				}
 				p.AppendInbox <- msg
 				reply := <-replyChan
-
 				if reply.Success {
+					n.mu.Lock()
 					n.MatchIndex[p.ID] = len(n.Log)
 					n.NextIndex[p.ID] = len(n.Log) + 1
+					n.mu.Unlock()
 					replies <- reply
 					return
 				}
 
+				n.mu.Lock()
 				n.NextIndex[p.ID]--
 				if n.NextIndex[p.ID] < 1 {
 					n.NextIndex[p.ID] = 1
 				}
+				n.mu.Unlock()
 			}
 		}(peer)
 	}

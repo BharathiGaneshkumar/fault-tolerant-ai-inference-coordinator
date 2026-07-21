@@ -1,5 +1,7 @@
 package raft
 
+import "sync"
+
 type NodeState int
 
 const (
@@ -19,6 +21,7 @@ type Node struct {
 	CommitIndex   int
 	NextIndex     map[int]int
 	MatchIndex    map[int]int
+	mu            sync.Mutex
 }
 
 // every node that we create nneds to first be a follower and start with term 0 and size of the whole cluster
