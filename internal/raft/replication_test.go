@@ -151,3 +151,39 @@ func TestRunLeaderHeartbeatLoop_SendsHeartbeatsAndStops(t *testing.T) {
 		t.Errorf("heartbeat loop did not stop in time")
 	}
 }
+func TestSendAppendEntries_CatchesUpLaggingFollower(t *testing.T) {
+	leader := NewNode(1, 2)
+	leader.Log = []LogEntry{
+		{Term: 1, Command: "a"},
+		{Term: 1, Command: "b"},
+		{Term: 1, Command: "c"},
+	}
+	leader.NextIndex[2] = 4 // leader optimistically thinks peer has all 3 entries
+
+	peerNode := NewNode(2, 2)
+	peerNode.Log = []LogEntry{
+		{Term: 1, Command: "a"},
+	} // peer is actually only at entry 1
+
+	appendInbox := make(chan AppendEntriesMsg)
+	go func(pn *Node, inbox chan AppendEntriesMsg) {
+		for {
+			msg, ok := <-inbox
+			if !ok {
+				return
+			}
+			pn.HandleAppendEntries(msg)
+		}
+	}(peerNode, appendInbox)
+
+	peers := []Peer{{ID: 2, AppendInbox: appendInbox}}
+
+	success := SendAppendEntries(leader, peers, []LogEntry{{Term: 1, Command: "d"}})
+
+	if !success {
+		t.Errorf("expected eventual success after backing up")
+	}
+	if len(peerNode.Log) != 4 {
+		t.Errorf("expected peer log length 4 after catch-up, got %v", len(peerNode.Log))
+	}
+}
