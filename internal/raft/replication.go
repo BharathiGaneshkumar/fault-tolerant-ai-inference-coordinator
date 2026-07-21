@@ -89,7 +89,12 @@ func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 
 	majority := n.ClusterSize/2 + 1
 	if successCount >= majority {
-		n.CommitIndex = len(n.Log)
+		if len(n.Log) > 0 {
+			lastEntryTerm := n.Log[len(n.Log)-1].Term
+			if lastEntryTerm == n.Term {
+				n.CommitIndex = len(n.Log)
+			}
+		}
 		return true
 	}
 
