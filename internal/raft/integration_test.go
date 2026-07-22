@@ -7,54 +7,46 @@ import (
 
 type TestCluster struct {
 	Nodes         []*Node
-	VoteInboxes   map[int]chan RequestVoteMsg
-	AppendInboxes map[int]chan AppendEntriesMsg
+	VoteInboxes   map[int]chan voteRequestEnvelope
+	AppendInboxes map[int]chan appendRequestEnvelope
 }
 
 func setupTestCluster(size int) *TestCluster {
 	cluster := &TestCluster{
-		VoteInboxes:   make(map[int]chan RequestVoteMsg),
-		AppendInboxes: make(map[int]chan AppendEntriesMsg),
+		VoteInboxes:   make(map[int]chan voteRequestEnvelope),
+		AppendInboxes: make(map[int]chan appendRequestEnvelope),
 	}
 
 	for id := 1; id <= size; id++ {
 		n := NewNode(id, size)
 		cluster.Nodes = append(cluster.Nodes, n)
-		cluster.VoteInboxes[id] = make(chan RequestVoteMsg, 10)
-		cluster.AppendInboxes[id] = make(chan AppendEntriesMsg, 10)
+		cluster.VoteInboxes[id] = make(chan voteRequestEnvelope, 10)
+		cluster.AppendInboxes[id] = make(chan appendRequestEnvelope, 10)
 	}
 
 	return cluster
 }
-func runNodeMessageLoop(n *Node, voteInbox chan RequestVoteMsg, appendInbox chan AppendEntriesMsg, stop chan bool) {
-	for {
-		select {
-		case msg := <-voteInbox:
-			n.HandleRequestVote(msg)
-		case msg := <-appendInbox:
-			n.HandleAppendEntries(msg)
-		case <-stop:
-			return
-		}
-	}
-}
+
 func TestFullClusterElection(t *testing.T) {
 	cluster := setupTestCluster(3)
 	stop := make(chan bool)
 
 	for _, n := range cluster.Nodes {
-		var peers []Peer
+		peersMap := make(map[int]ChannelPeer)
+		var peerIDs []int
 		for _, other := range cluster.Nodes {
 			if other.ID != n.ID {
-				peers = append(peers, Peer{
-					ID:          other.ID,
+				peersMap[other.ID] = ChannelPeer{
 					VoteInbox:   cluster.VoteInboxes[other.ID],
 					AppendInbox: cluster.AppendInboxes[other.ID],
-				})
+				}
+				peerIDs = append(peerIDs, other.ID)
 			}
 		}
 
-		go RunNodeLifecycle(n, cluster.VoteInboxes[n.ID], cluster.AppendInboxes[n.ID], peers, stop)
+		transport := &ChannelTransport{Peers: peersMap}
+
+		go RunNodeLifecycle(n, cluster.VoteInboxes[n.ID], cluster.AppendInboxes[n.ID], transport, peerIDs, stop)
 	}
 
 	time.Sleep(500 * time.Millisecond)

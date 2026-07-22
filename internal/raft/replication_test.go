@@ -7,7 +7,6 @@ import (
 
 func TestHandleAppendEntries_AcceptsFirstEntry(t *testing.T) {
 	n := NewNode(1, 5)
-	replyChan := make(chan AppendEntriesReply, 1)
 
 	msg := AppendEntriesMsg{
 		LeaderID:     2,
@@ -16,11 +15,9 @@ func TestHandleAppendEntries_AcceptsFirstEntry(t *testing.T) {
 		PrevLogTerm:  0,
 		Entries:      []LogEntry{{Term: 1, Command: "x=1"}},
 		LeaderCommit: 0,
-		ReplyChan:    replyChan,
 	}
 
-	n.HandleAppendEntries(msg)
-	reply := <-replyChan
+	reply := n.HandleAppendEntries(msg)
 
 	if !reply.Success {
 		t.Errorf("expected success, got failure")
@@ -29,25 +26,31 @@ func TestHandleAppendEntries_AcceptsFirstEntry(t *testing.T) {
 		t.Errorf("expected log length 1, got %v", len(n.Log))
 	}
 }
+
 func TestSendAppendEntries_ReplicatesAndCommits(t *testing.T) {
 	leader := NewNode(1, 3) // 3-node cluster, majority = 2
 
-	var peers []Peer
+	peersMap := make(map[int]ChannelPeer)
+	var peerIDs []int
 
 	for id := 2; id <= 3; id++ {
 		peerNode := NewNode(id, 3)
-		appendInbox := make(chan AppendEntriesMsg)
+		appendInbox := make(chan appendRequestEnvelope)
 
-		go func(pn *Node, inbox chan AppendEntriesMsg) {
-			msg := <-inbox
-			pn.HandleAppendEntries(msg)
+		go func(pn *Node, inbox chan appendRequestEnvelope) {
+			envelope := <-inbox
+			reply := pn.HandleAppendEntries(envelope.msg)
+			envelope.replyChan <- reply
 		}(peerNode, appendInbox)
 
-		peers = append(peers, Peer{ID: id, AppendInbox: appendInbox})
+		peersMap[id] = ChannelPeer{AppendInbox: appendInbox}
+		peerIDs = append(peerIDs, id)
 	}
 
+	transport := &ChannelTransport{Peers: peersMap}
+
 	entries := []LogEntry{{Term: leader.Term, Command: "x=1"}}
-	success := SendAppendEntries(leader, peers, entries)
+	success := SendAppendEntries(leader, transport, peerIDs, entries)
 
 	if !success {
 		t.Errorf("expected replication to succeed with majority")
@@ -64,15 +67,12 @@ func TestHandleAppendEntries_RejectsStaleTerm(t *testing.T) {
 	n := NewNode(1, 5)
 	n.BecomeFollower(5) // we're already at term 5
 
-	replyChan := make(chan AppendEntriesReply, 1)
 	msg := AppendEntriesMsg{
-		LeaderID:  2,
-		Term:      3, // stale, lower than ours
-		ReplyChan: replyChan,
+		LeaderID: 2,
+		Term:     3, // stale, lower than ours
 	}
 
-	n.HandleAppendEntries(msg)
-	reply := <-replyChan
+	reply := n.HandleAppendEntries(msg)
 
 	if reply.Success {
 		t.Errorf("expected rejection of stale term, got success")
@@ -88,7 +88,6 @@ func TestHandleAppendEntries_TruncatesConflictingTail(t *testing.T) {
 		{Term: 2, Command: "stale-d"},
 	}
 
-	replyChan := make(chan AppendEntriesReply, 1)
 	msg := AppendEntriesMsg{
 		LeaderID:     2,
 		Term:         3,
@@ -96,11 +95,9 @@ func TestHandleAppendEntries_TruncatesConflictingTail(t *testing.T) {
 		PrevLogTerm:  1,
 		Entries:      []LogEntry{{Term: 3, Command: "new-c"}},
 		LeaderCommit: 0,
-		ReplyChan:    replyChan,
 	}
 
-	n.HandleAppendEntries(msg)
-	reply := <-replyChan
+	reply := n.HandleAppendEntries(msg)
 
 	if !reply.Success {
 		t.Errorf("expected success, got failure")
@@ -112,32 +109,39 @@ func TestHandleAppendEntries_TruncatesConflictingTail(t *testing.T) {
 		t.Errorf("expected entry 3 to be new-c, got %v", n.Log[2].Command)
 	}
 }
+
 func TestRunLeaderHeartbeatLoop_SendsHeartbeatsAndStops(t *testing.T) {
 	leader := NewNode(1, 3)
 
-	var peers []Peer
+	peersMap := make(map[int]ChannelPeer)
+	var peerIDs []int
+
 	for id := 2; id <= 3; id++ {
 		peerNode := NewNode(id, 3)
-		appendInbox := make(chan AppendEntriesMsg)
+		appendInbox := make(chan appendRequestEnvelope, 10)
 
-		go func(pn *Node, inbox chan AppendEntriesMsg) {
+		go func(pn *Node, inbox chan appendRequestEnvelope) {
 			for {
-				msg, ok := <-inbox
+				envelope, ok := <-inbox
 				if !ok {
 					return
 				}
-				pn.HandleAppendEntries(msg)
+				reply := pn.HandleAppendEntries(envelope.msg)
+				envelope.replyChan <- reply
 			}
 		}(peerNode, appendInbox)
 
-		peers = append(peers, Peer{ID: id, AppendInbox: appendInbox})
+		peersMap[id] = ChannelPeer{AppendInbox: appendInbox}
+		peerIDs = append(peerIDs, id)
 	}
+
+	transport := &ChannelTransport{Peers: peersMap}
 
 	stop := make(chan bool)
 	done := make(chan bool)
 
 	go func() {
-		RunLeaderHeartbeatLoop(leader, peers, stop)
+		RunLeaderHeartbeatLoop(leader, transport, peerIDs, stop)
 		done <- true
 	}()
 
@@ -151,6 +155,7 @@ func TestRunLeaderHeartbeatLoop_SendsHeartbeatsAndStops(t *testing.T) {
 		t.Errorf("heartbeat loop did not stop in time")
 	}
 }
+
 func TestSendAppendEntries_CatchesUpLaggingFollower(t *testing.T) {
 	leader := NewNode(1, 2)
 	leader.Log = []LogEntry{
@@ -165,20 +170,25 @@ func TestSendAppendEntries_CatchesUpLaggingFollower(t *testing.T) {
 		{Term: 1, Command: "a"},
 	} // peer is actually only at entry 1
 
-	appendInbox := make(chan AppendEntriesMsg)
-	go func(pn *Node, inbox chan AppendEntriesMsg) {
+	appendInbox := make(chan appendRequestEnvelope)
+	go func(pn *Node, inbox chan appendRequestEnvelope) {
 		for {
-			msg, ok := <-inbox
+			envelope, ok := <-inbox
 			if !ok {
 				return
 			}
-			pn.HandleAppendEntries(msg)
+			reply := pn.HandleAppendEntries(envelope.msg)
+			envelope.replyChan <- reply
 		}
 	}(peerNode, appendInbox)
 
-	peers := []Peer{{ID: 2, AppendInbox: appendInbox}}
+	transport := &ChannelTransport{
+		Peers: map[int]ChannelPeer{
+			2: {AppendInbox: appendInbox},
+		},
+	}
 
-	success := SendAppendEntries(leader, peers, []LogEntry{{Term: 1, Command: "d"}})
+	success := SendAppendEntries(leader, transport, []int{2}, []LogEntry{{Term: 1, Command: "d"}})
 
 	if !success {
 		t.Errorf("expected eventual success after backing up")

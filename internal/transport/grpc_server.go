@@ -13,18 +13,14 @@ type RaftGRPCServer struct {
 }
 
 func (s *RaftGRPCServer) RequestVote(ctx context.Context, req *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	replyChan := make(chan raft.RequestVoteReply, 1)
-
 	msg := raft.RequestVoteMsg{
 		CandidateID:  int(req.CandidateId),
 		Term:         int(req.Term),
 		LastLogIndex: int(req.LastLogIndex),
 		LastLogTerm:  int(req.LastLogTerm),
-		ReplyChan:    replyChan,
 	}
 
-	s.Node.HandleRequestVote(msg)
-	reply := <-replyChan
+	reply := s.Node.HandleRequestVote(msg)
 
 	return &pb.RequestVoteResponse{
 		VoterId:     int32(reply.VoterID),
@@ -33,8 +29,6 @@ func (s *RaftGRPCServer) RequestVote(ctx context.Context, req *pb.RequestVoteReq
 	}, nil
 }
 func (s *RaftGRPCServer) AppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
-	replyChan := make(chan raft.AppendEntriesReply, 1)
-
 	var entries []raft.LogEntry
 	for _, e := range req.Entries {
 		entries = append(entries, raft.LogEntry{
@@ -50,11 +44,9 @@ func (s *RaftGRPCServer) AppendEntries(ctx context.Context, req *pb.AppendEntrie
 		PrevLogTerm:  int(req.PrevLogTerm),
 		Entries:      entries,
 		LeaderCommit: int(req.LeaderCommit),
-		ReplyChan:    replyChan,
 	}
 
-	s.Node.HandleAppendEntries(msg)
-	reply := <-replyChan
+	reply := s.Node.HandleAppendEntries(msg)
 
 	return &pb.AppendEntriesResponse{
 		FollowerId: int32(reply.FollowerID),

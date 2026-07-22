@@ -2,13 +2,11 @@ package raft
 
 import "time"
 
-func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) {
+func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) AppendEntriesReply {
 	success := false
 
 	if msg.Term < n.Term {
-		reply := AppendEntriesReply{FollowerID: n.ID, Term: n.Term, Success: false}
-		msg.ReplyChan <- reply
-		return
+		return AppendEntriesReply{FollowerID: n.ID, Term: n.Term, Success: false}
 	}
 
 	if msg.Term > n.Term {
@@ -29,19 +27,18 @@ func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) {
 		}
 	}
 
-	reply := AppendEntriesReply{FollowerID: n.ID, Term: n.Term, Success: success}
-	msg.ReplyChan <- reply
+	return AppendEntriesReply{FollowerID: n.ID, Term: n.Term, Success: success}
 }
-func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
+func SendAppendEntries(n *Node, transport Transport, peerIDs []int, entries []LogEntry) bool {
 	n.Log = append(n.Log, entries...)
 
-	replies := make(chan AppendEntriesReply, len(peers))
+	replies := make(chan AppendEntriesReply, len(peerIDs))
 
-	for _, peer := range peers {
-		go func(p Peer) {
+	for _, peerID := range peerIDs {
+		go func(pid int) {
 			for {
 				n.mu.Lock()
-				nextIdx := n.NextIndex[p.ID]
+				nextIdx := n.NextIndex[pid]
 				n.mu.Unlock()
 				if nextIdx == 0 {
 					nextIdx = 1
@@ -53,7 +50,6 @@ func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 				}
 				entriesToSend := n.Log[prevLogIndex:]
 
-				replyChan := make(chan AppendEntriesReply, 1)
 				msg := AppendEntriesMsg{
 					LeaderID:     n.ID,
 					Term:         n.Term,
@@ -61,31 +57,29 @@ func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 					PrevLogTerm:  prevLogTerm,
 					Entries:      entriesToSend,
 					LeaderCommit: n.CommitIndex,
-					ReplyChan:    replyChan,
 				}
-				p.AppendInbox <- msg
-				reply := <-replyChan
+				reply := transport.SendAppendEntries(pid, msg)
 				if reply.Success {
 					n.mu.Lock()
-					n.MatchIndex[p.ID] = len(n.Log)
-					n.NextIndex[p.ID] = len(n.Log) + 1
+					n.MatchIndex[pid] = len(n.Log)
+					n.NextIndex[pid] = len(n.Log) + 1
 					n.mu.Unlock()
 					replies <- reply
 					return
 				}
 
 				n.mu.Lock()
-				n.NextIndex[p.ID]--
-				if n.NextIndex[p.ID] < 1 {
-					n.NextIndex[p.ID] = 1
+				n.NextIndex[pid]--
+				if n.NextIndex[pid] < 1 {
+					n.NextIndex[pid] = 1
 				}
 				n.mu.Unlock()
 			}
-		}(peer)
+		}(peerID)
 	}
 
 	successCount := 1
-	for i := 0; i < len(peers); i++ {
+	for i := 0; i < len(peerIDs); i++ {
 		reply := <-replies
 		if reply.Success {
 			successCount++
@@ -105,14 +99,14 @@ func SendAppendEntries(n *Node, peers []Peer, entries []LogEntry) bool {
 
 	return false
 }
-func RunLeaderHeartbeatLoop(n *Node, peers []Peer, stop chan bool) {
+func RunLeaderHeartbeatLoop(n *Node, transport Transport, peerIDs []int, stop chan bool) {
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			SendAppendEntries(n, peers, []LogEntry{})
+			SendAppendEntries(n, transport, peerIDs, []LogEntry{})
 		case <-stop:
 			return
 		}

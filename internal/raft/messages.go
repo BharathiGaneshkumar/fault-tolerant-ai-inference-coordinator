@@ -5,7 +5,6 @@ type RequestVoteMsg struct {
 	Term         int
 	LastLogIndex int
 	LastLogTerm  int
-	ReplyChan    chan RequestVoteReply
 }
 
 type RequestVoteReply struct {
@@ -30,7 +29,6 @@ type AppendEntriesMsg struct {
 	PrevLogTerm  int
 	Entries      []LogEntry
 	LeaderCommit int
-	ReplyChan    chan AppendEntriesReply
 }
 
 type AppendEntriesReply struct {

@@ -11,19 +11,21 @@ func randomElectionTimeout() time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-func RunNodeLoop(n *Node, voteInbox chan RequestVoteMsg, appendInbox chan AppendEntriesMsg, stop chan bool) {
+func RunNodeLoop(n *Node, voteInbox chan voteRequestEnvelope, appendInbox chan appendRequestEnvelope, stop chan bool) {
 	for {
 		if n.State == Leader {
-			return // leader uses heartbeat loop instead, not this election loop
+			return
 		}
 
 		timeout := time.After(randomElectionTimeout())
 
 		select {
-		case msg := <-voteInbox:
-			n.HandleRequestVote(msg)
-		case msg := <-appendInbox:
-			n.HandleAppendEntries(msg)
+		case envelope := <-voteInbox:
+			reply := n.HandleRequestVote(envelope.msg)
+			envelope.replyChan <- reply
+		case envelope := <-appendInbox:
+			reply := n.HandleAppendEntries(envelope.msg)
+			envelope.replyChan <- reply
 		case <-timeout:
 			fmt.Println("node", n.ID, "election timeout fired, becoming candidate")
 			n.BecomeCandidate()
@@ -34,7 +36,7 @@ func RunNodeLoop(n *Node, voteInbox chan RequestVoteMsg, appendInbox chan Append
 	}
 }
 
-func (n *Node) HandleRequestVote(msg RequestVoteMsg) {
+func (n *Node) HandleRequestVote(msg RequestVoteMsg) RequestVoteReply {
 	voteGranted := false
 
 	if msg.Term > n.Term {
@@ -55,15 +57,13 @@ func (n *Node) HandleRequestVote(msg RequestVoteMsg) {
 		n.VotedFor = msg.CandidateID
 	}
 
-	reply := RequestVoteReply{
+	return RequestVoteReply{
 		VoterID:     n.ID,
 		Term:        n.Term,
 		VoteGranted: voteGranted,
 	}
-
-	msg.ReplyChan <- reply
 }
-func StartElection(n *Node, peers []Peer) bool {
+func StartElection(n *Node, transport Transport, peerIDs []int) bool {
 	n.BecomeCandidate()
 
 	lastLogIndex := len(n.Log)
@@ -72,33 +72,26 @@ func StartElection(n *Node, peers []Peer) bool {
 		lastLogTerm = n.Log[lastLogIndex-1].Term
 	}
 
-	replies := make(chan RequestVoteReply, len(peers))
+	replies := make(chan RequestVoteReply, len(peerIDs))
 
-	for _, peer := range peers {
-		go func(p Peer) {
-			replyChan := make(chan RequestVoteReply, 1)
+	for _, peerID := range peerIDs {
+		go func(pid int) {
 			msg := RequestVoteMsg{
 				CandidateID:  n.ID,
 				Term:         n.Term,
 				LastLogIndex: lastLogIndex,
 				LastLogTerm:  lastLogTerm,
-				ReplyChan:    replyChan,
 			}
-			p.VoteInbox <- msg
-			reply := <-replyChan
+			reply := transport.SendRequestVote(pid, msg)
 			replies <- reply
-		}(peer)
+		}(peerID)
 	}
 
-	for i := 0; i < len(peers); i++ {
+	for i := 0; i < len(peerIDs); i++ {
 		reply := <-replies
 		if reply.VoteGranted {
 			won := n.ReceiveVote()
 			if won {
-				var peerIDs []int
-				for _, p := range peers {
-					peerIDs = append(peerIDs, p.ID)
-				}
 				fmt.Println("node", n.ID, "won the election, becoming leader for term", n.Term)
 				n.BecomeLeader(peerIDs)
 				return true
@@ -107,4 +100,23 @@ func StartElection(n *Node, peers []Peer) bool {
 	}
 
 	return false
+}
+func RunNodeLifecycle(n *Node, voteInbox chan voteRequestEnvelope, appendInbox chan appendRequestEnvelope, transport Transport, peerIDs []int, stop chan bool) {
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
+
+		RunNodeLoop(n, voteInbox, appendInbox, stop)
+
+		if n.State == Candidate {
+			won := StartElection(n, transport, peerIDs)
+			if won {
+				RunLeaderHeartbeatLoop(n, transport, peerIDs, stop)
+				return
+			}
+		}
+	}
 }
