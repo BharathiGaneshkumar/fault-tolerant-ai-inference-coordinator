@@ -36,3 +36,13 @@ type AppendEntriesReply struct {
 	Term       int
 	Success    bool
 }
+type PreVoteMsg struct {
+	CandidateID  int
+	Term         int // the term it WOULD use if it proceeds
+	LastLogIndex int
+	LastLogTerm  int
+}
+
+type PreVoteReply struct {
+	VoteGranted bool
+}

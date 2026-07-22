@@ -54,3 +54,13 @@ func (s *RaftGRPCServer) AppendEntries(ctx context.Context, req *pb.AppendEntrie
 		Success:    reply.Success,
 	}, nil
 }
+func (s *RaftGRPCServer) PreVote(ctx context.Context, req *pb.PreVoteRequest) (*pb.PreVoteResponse, error) {
+	msg := raft.PreVoteMsg{
+		CandidateID:  int(req.CandidateId),
+		Term:         int(req.Term),
+		LastLogIndex: int(req.LastLogIndex),
+		LastLogTerm:  int(req.LastLogTerm),
+	}
+	reply := s.Node.HandlePreVote(msg)
+	return &pb.PreVoteResponse{VoteGranted: reply.VoteGranted}, nil
+}

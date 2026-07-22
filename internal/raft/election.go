@@ -142,13 +142,65 @@ func RunNodeLifecycleGRPC(n *Node, transport Transport, peerIDs []int, stop chan
 			elapsed := time.Since(n.LastHeartbeat)
 			n.mu.Unlock()
 			if elapsed >= electionTimeout {
-				fmt.Println("node", n.ID, "election timeout fired, becoming candidate")
-				won := StartElection(n, transport, peerIDs)
-				if won {
-					RunLeaderHeartbeatLoop(n, transport, peerIDs, stop)
-					// don't return here — loop back and continue as follower if demoted
+				if RunPreVote(n, transport, peerIDs) {
+					fmt.Println("node", n.ID, "pre-vote succeeded, starting real election")
+					won := StartElection(n, transport, peerIDs)
+					if won {
+						RunLeaderHeartbeatLoop(n, transport, peerIDs, stop)
+					}
 				}
 			}
 		}
 	}
+}
+func (n *Node) HandlePreVote(msg PreVoteMsg) PreVoteReply {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	myLastLogIndex := len(n.Log)
+	myLastLogTerm := 0
+	if myLastLogIndex > 0 {
+		myLastLogTerm = n.Log[myLastLogIndex-1].Term
+	}
+
+	logIsUpToDate := msg.LastLogTerm > myLastLogTerm ||
+		(msg.LastLogTerm == myLastLogTerm && msg.LastLogIndex >= myLastLogIndex)
+
+	timeSinceHeartbeat := time.Since(n.LastHeartbeat)
+
+	granted := msg.Term >= n.Term && logIsUpToDate && timeSinceHeartbeat > 300*time.Millisecond
+
+	return PreVoteReply{VoteGranted: granted}
+}
+func RunPreVote(n *Node, transport Transport, peerIDs []int) bool {
+	lastLogIndex := len(n.Log)
+	lastLogTerm := 0
+	if lastLogIndex > 0 {
+		lastLogTerm = n.Log[lastLogIndex-1].Term
+	}
+
+	msg := PreVoteMsg{
+		CandidateID:  n.ID,
+		Term:         n.Term + 1,
+		LastLogIndex: lastLogIndex,
+		LastLogTerm:  lastLogTerm,
+	}
+
+	replies := make(chan PreVoteReply, len(peerIDs))
+	for _, peerID := range peerIDs {
+		go func(pid int) {
+			replies <- transport.SendPreVote(pid, msg)
+		}(peerID)
+	}
+
+	votes := 1 // self
+	for i := 0; i < len(peerIDs); i++ {
+		reply := <-replies
+		if reply.VoteGranted {
+			votes++
+		}
+	}
+
+	majority := n.ClusterSize/2 + 1
+	return votes >= majority
 }

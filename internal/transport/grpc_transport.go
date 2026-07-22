@@ -63,3 +63,17 @@ func (t *GRPCTransport) SendAppendEntries(peerID int, msg raft.AppendEntriesMsg)
 		Success:    resp.Success,
 	}
 }
+func (t *GRPCTransport) SendPreVote(peerID int, msg raft.PreVoteMsg) raft.PreVoteReply {
+	client := t.Clients[peerID]
+	req := &pb.PreVoteRequest{
+		CandidateId:  int32(msg.CandidateID),
+		Term:         int32(msg.Term),
+		LastLogIndex: int32(msg.LastLogIndex),
+		LastLogTerm:  int32(msg.LastLogTerm),
+	}
+	resp, err := client.PreVote(context.Background(), req)
+	if err != nil {
+		return raft.PreVoteReply{VoteGranted: false}
+	}
+	return raft.PreVoteReply{VoteGranted: resp.VoteGranted}
+}

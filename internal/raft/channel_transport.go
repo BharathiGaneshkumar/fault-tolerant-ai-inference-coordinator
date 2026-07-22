@@ -30,3 +30,6 @@ func (t *ChannelTransport) SendAppendEntries(peerID int, msg AppendEntriesMsg) A
 	t.Peers[peerID].AppendInbox <- appendRequestEnvelope{msg: msg, replyChan: replyChan}
 	return <-replyChan
 }
+func (t *ChannelTransport) SendPreVote(peerID int, msg PreVoteMsg) PreVoteReply {
+	return PreVoteReply{VoteGranted: false} // simplified stub for channel transport, not used in gRPC path
+}
