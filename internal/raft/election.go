@@ -7,7 +7,7 @@ import (
 )
 
 func randomElectionTimeout() time.Duration {
-	ms := 150 + rand.Intn(150) // random between 150-300ms
+	ms := 500 + rand.Intn(500) // 500-1000ms
 	return time.Duration(ms) * time.Millisecond
 }
 

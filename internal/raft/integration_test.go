@@ -49,7 +49,7 @@ func TestFullClusterElection(t *testing.T) {
 		go RunNodeLifecycle(n, cluster.VoteInboxes[n.ID], cluster.AppendInboxes[n.ID], transport, peerIDs, stop)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 
 	leaderCount := 0
 	for _, n := range cluster.Nodes {

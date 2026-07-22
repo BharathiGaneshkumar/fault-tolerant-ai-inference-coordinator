@@ -43,7 +43,10 @@ func SendAppendEntries(n *Node, transport Transport, peerIDs []int, entries []Lo
 
 	for _, peerID := range peerIDs {
 		go func(pid int) {
-			for {
+			maxRetries := 5
+			var lastReply AppendEntriesReply
+
+			for attempt := 0; attempt < maxRetries; attempt++ {
 				n.mu.Lock()
 				nextIdx := n.NextIndex[pid]
 				n.mu.Unlock()
@@ -66,6 +69,8 @@ func SendAppendEntries(n *Node, transport Transport, peerIDs []int, entries []Lo
 					LeaderCommit: n.CommitIndex,
 				}
 				reply := transport.SendAppendEntries(pid, msg)
+				lastReply = reply
+
 				if reply.Success {
 					n.mu.Lock()
 					n.MatchIndex[pid] = len(n.Log)
@@ -82,6 +87,8 @@ func SendAppendEntries(n *Node, transport Transport, peerIDs []int, entries []Lo
 				}
 				n.mu.Unlock()
 			}
+
+			replies <- lastReply // give up after maxRetries, don't block forever
 		}(peerID)
 	}
 
@@ -107,7 +114,7 @@ func SendAppendEntries(n *Node, transport Transport, peerIDs []int, entries []Lo
 	return false
 }
 func RunLeaderHeartbeatLoop(n *Node, transport Transport, peerIDs []int, stop chan bool) {
-	ticker := time.NewTicker(50 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {

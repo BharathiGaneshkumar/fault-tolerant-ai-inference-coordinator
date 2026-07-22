@@ -54,17 +54,17 @@ func (n *Node) BecomeCandidate() {
 }
 func (n *Node) BecomeLeader(peerIDs []int) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 	n.State = Leader
 	for _, id := range peerIDs {
 		n.NextIndex[id] = len(n.Log) + 1
 		n.MatchIndex[id] = 0
 	}
+	n.mu.Unlock()
+
 	if n.PersistPath != "" {
 		SaveState(n, n.PersistPath)
 	}
 }
-
 func (n *Node) BecomeFollower(term int) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -72,9 +72,6 @@ func (n *Node) BecomeFollower(term int) {
 	n.Term = term
 	n.VotedFor = 0
 	n.LastHeartbeat = time.Now()
-	if n.PersistPath != "" {
-		SaveState(n, n.PersistPath)
-	}
 }
 
 func (n *Node) GetState() NodeState {

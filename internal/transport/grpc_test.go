@@ -97,7 +97,7 @@ func TestGRPCCluster_RealElection(t *testing.T) {
 		go raft.RunNodeLifecycleGRPC(n, transport, peerIDs, stop)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	close(stop)
 
 	leaderCount := 0
