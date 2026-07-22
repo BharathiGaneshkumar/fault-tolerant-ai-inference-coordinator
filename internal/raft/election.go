@@ -125,15 +125,25 @@ func RunNodeLifecycleGRPC(n *Node, transport Transport, peerIDs []int, stop chan
 		if n.State == Leader {
 			return
 		}
+		electionTimeout := randomElectionTimeout()
+		n.mu.Lock()
+		n.LastHeartbeat = time.Now()
+		n.mu.Unlock()
+
 		select {
 		case <-stop:
 			return
-		case <-time.After(randomElectionTimeout()):
-			fmt.Println("node", n.ID, "election timeout fired, becoming candidate")
-			won := StartElection(n, transport, peerIDs)
-			if won {
-				RunLeaderHeartbeatLoop(n, transport, peerIDs, stop)
-				return
+		case <-time.After(electionTimeout):
+			n.mu.Lock()
+			elapsed := time.Since(n.LastHeartbeat)
+			n.mu.Unlock()
+			if elapsed >= electionTimeout {
+				fmt.Println("node", n.ID, "election timeout fired, becoming candidate")
+				won := StartElection(n, transport, peerIDs)
+				if won {
+					RunLeaderHeartbeatLoop(n, transport, peerIDs, stop)
+					return
+				}
 			}
 		}
 	}

@@ -134,6 +134,7 @@ func TestRunLeaderHeartbeatLoop_SendsHeartbeatsAndStops(t *testing.T) {
 		peersMap[id] = ChannelPeer{AppendInbox: appendInbox}
 		peerIDs = append(peerIDs, id)
 	}
+	leader.BecomeLeader(peerIDs)
 
 	transport := &ChannelTransport{Peers: peersMap}
 

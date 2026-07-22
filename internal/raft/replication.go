@@ -9,6 +9,10 @@ func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) AppendEntriesReply {
 		return AppendEntriesReply{FollowerID: n.ID, Term: n.Term, Success: false}
 	}
 
+	n.mu.Lock()
+	n.LastHeartbeat = time.Now()
+	n.mu.Unlock()
+
 	if msg.Term > n.Term {
 		n.BecomeFollower(msg.Term)
 	}
@@ -104,6 +108,9 @@ func RunLeaderHeartbeatLoop(n *Node, transport Transport, peerIDs []int, stop ch
 	defer ticker.Stop()
 
 	for {
+		if n.State != Leader {
+			return
+		}
 		select {
 		case <-ticker.C:
 			SendAppendEntries(n, transport, peerIDs, []LogEntry{})

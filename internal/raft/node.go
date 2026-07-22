@@ -1,6 +1,9 @@
 package raft
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 type NodeState int
 
@@ -22,6 +25,7 @@ type Node struct {
 	NextIndex     map[int]int
 	MatchIndex    map[int]int
 	mu            sync.Mutex
+	LastHeartbeat time.Time
 }
 
 // every node that we create nneds to first be a follower and start with term 0 and size of the whole cluster
