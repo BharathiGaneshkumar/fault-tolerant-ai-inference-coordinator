@@ -142,6 +142,7 @@ func RunNodeLifecycleGRPC(n *Node, transport Transport, peerIDs []int, stop chan
 			elapsed := time.Since(n.LastHeartbeat)
 			n.mu.Unlock()
 			if elapsed >= electionTimeout {
+				fmt.Println("node", n.ID, "election timeout fired, attempting pre-vote")
 				if RunPreVote(n, transport, peerIDs) {
 					fmt.Println("node", n.ID, "pre-vote succeeded, starting real election")
 					won := StartElection(n, transport, peerIDs)
@@ -156,6 +157,10 @@ func RunNodeLifecycleGRPC(n *Node, transport Transport, peerIDs []int, stop chan
 func (n *Node) HandlePreVote(msg PreVoteMsg) PreVoteReply {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+
+	if n.State == Leader {
+		return PreVoteReply{VoteGranted: false}
+	}
 
 	myLastLogIndex := len(n.Log)
 	myLastLogTerm := 0
