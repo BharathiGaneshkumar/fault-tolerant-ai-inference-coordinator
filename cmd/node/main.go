@@ -92,8 +92,6 @@ func main() {
 		}
 	}()
 
-	raft.RunNodeLifecycleGRPC(n, rt, peerIDs, stop)
-
 	tracker := coordinator.NewHealthTracker()
 	// Register replicas here once Phase 4 exists; for now, hardcode test replicas if desired
 
@@ -136,6 +134,11 @@ func main() {
 	go func() {
 		httpPort := fmt.Sprintf(":%d", 8000+*id)
 		fmt.Println("node", *id, "HTTP API listening on", httpPort)
-		http.ListenAndServe(httpPort, nil)
+		if err := http.ListenAndServe(httpPort, nil); err != nil {
+			fmt.Println("HTTP server error:", err)
+		}
 	}()
+	go raft.RunNodeLifecycleGRPC(n, rt, peerIDs, stop)
+	select {}
+
 }

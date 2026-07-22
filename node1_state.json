@@ -1,1 +1,1 @@
-{"term":36,"voted_for":3,"log":[{"Term":1,"Command":"x=10"},{"Term":1,"Command":"x=15"},{"Term":1,"Command":"x=25"},{"Term":15,"Command":"x=16"},{"Term":15,"Command":"x=18"},{"Term":15,"Command":"x=90"},{"Term":31,"Command":"x=80"},{"Term":31,"Command":"x=96"},{"Term":31,"Command":"x=87"},{"Term":31,"Command":"x=77"},{"Term":31,"Command":"x=987"},{"Term":32,"Command":"x=78"},{"Term":33,"Command":"x=90"},{"Term":33,"Command":"x=86"},{"Term":35,"Command":"x=90"},{"Term":35,"Command":"x100"}]}
+{"term":3,"voted_for":1,"log":null}

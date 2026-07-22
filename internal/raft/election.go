@@ -68,6 +68,12 @@ func (n *Node) HandleRequestVote(msg RequestVoteMsg) RequestVoteReply {
 }
 func StartElection(n *Node, transport Transport, peerIDs []int) bool {
 	n.BecomeCandidate()
+	majority := n.ClusterSize/2 + 1
+	if n.VotesReceived >= majority {
+		fmt.Println("node", n.ID, "won the election, becoming leader for term", n.Term)
+		n.BecomeLeader(peerIDs)
+		return true
+	}
 
 	lastLogIndex := len(n.Log)
 	lastLogTerm := 0
