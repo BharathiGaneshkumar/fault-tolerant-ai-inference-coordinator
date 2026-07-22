@@ -27,6 +27,15 @@ func main() {
 	}
 
 	n := raft.NewNode(*id, *clusterSize)
+	persistPath := fmt.Sprintf("node%d_state.json", *id)
+	n.PersistPath = persistPath
+
+	if state, err := raft.LoadState(persistPath); err == nil && state != nil {
+		n.Term = state.Term
+		n.VotedFor = state.VotedFor
+		n.Log = state.Log
+		fmt.Println("node", *id, "restored state: term", state.Term)
+	}
 
 	lis, err := net.Listen("tcp", ":"+*port)
 	if err != nil {

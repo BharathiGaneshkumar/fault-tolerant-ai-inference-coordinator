@@ -30,6 +30,9 @@ func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) AppendEntriesReply {
 			}
 		}
 	}
+	if n.PersistPath != "" {
+		SaveState(n, n.PersistPath)
+	}
 
 	return AppendEntriesReply{FollowerID: n.ID, Term: n.Term, Success: success}
 }
@@ -108,7 +111,7 @@ func RunLeaderHeartbeatLoop(n *Node, transport Transport, peerIDs []int, stop ch
 	defer ticker.Stop()
 
 	for {
-		if n.State != Leader {
+		if n.GetState() != Leader {
 			return
 		}
 		select {

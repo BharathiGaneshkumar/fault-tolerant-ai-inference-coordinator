@@ -56,6 +56,9 @@ func (n *Node) HandleRequestVote(msg RequestVoteMsg) RequestVoteReply {
 		voteGranted = true
 		n.VotedFor = msg.CandidateID
 	}
+	if n.PersistPath != "" {
+		SaveState(n, n.PersistPath)
+	}
 
 	return RequestVoteReply{
 		VoterID:     n.ID,
@@ -121,14 +124,15 @@ func RunNodeLifecycle(n *Node, voteInbox chan voteRequestEnvelope, appendInbox c
 	}
 }
 func RunNodeLifecycleGRPC(n *Node, transport Transport, peerIDs []int, stop chan bool) {
+	n.mu.Lock()
+	n.LastHeartbeat = time.Now()
+	n.mu.Unlock()
+
 	for {
-		if n.State == Leader {
+		if n.GetState() == Leader {
 			return
 		}
 		electionTimeout := randomElectionTimeout()
-		n.mu.Lock()
-		n.LastHeartbeat = time.Now()
-		n.mu.Unlock()
 
 		select {
 		case <-stop:
@@ -142,7 +146,7 @@ func RunNodeLifecycleGRPC(n *Node, transport Transport, peerIDs []int, stop chan
 				won := StartElection(n, transport, peerIDs)
 				if won {
 					RunLeaderHeartbeatLoop(n, transport, peerIDs, stop)
-					return
+					// don't return here — loop back and continue as follower if demoted
 				}
 			}
 		}
