@@ -1,6 +1,9 @@
 package raft
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) AppendEntriesReply {
 	success := false
@@ -30,6 +33,9 @@ func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) AppendEntriesReply {
 			}
 		}
 	}
+	if success && len(msg.Entries) > 0 {
+		fmt.Println("node", n.ID, "caught up, log length now", len(n.Log))
+	}
 	if n.PersistPath != "" {
 		SaveState(n, n.PersistPath)
 	}
@@ -43,7 +49,7 @@ func SendAppendEntries(n *Node, transport Transport, peerIDs []int, entries []Lo
 
 	for _, peerID := range peerIDs {
 		go func(pid int) {
-			maxRetries := 5
+			maxRetries := 50
 			var lastReply AppendEntriesReply
 
 			for attempt := 0; attempt < maxRetries; attempt++ {
@@ -86,6 +92,7 @@ func SendAppendEntries(n *Node, transport Transport, peerIDs []int, entries []Lo
 					n.NextIndex[pid] = 1
 				}
 				n.mu.Unlock()
+				time.Sleep(20 * time.Millisecond)
 			}
 
 			replies <- lastReply // give up after maxRetries, don't block forever

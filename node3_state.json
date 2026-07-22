@@ -1,1 +1,1 @@
-{"term":11,"voted_for":3,"log":null}
+{"term":21,"voted_for":1,"log":[{"Term":3,"Command":"x=1"},{"Term":3,"Command":"x=5"},{"Term":3,"Command":"x=10"},{"Term":3,"Command":"x=15"},{"Term":3,"Command":"x=20"},{"Term":15,"Command":"x=35"},{"Term":15,"Command":"x=45"}]}

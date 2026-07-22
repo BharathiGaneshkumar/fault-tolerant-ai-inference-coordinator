@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 
@@ -73,6 +75,18 @@ func main() {
 
 	rt := &transport.GRPCTransport{Clients: peerClients}
 	stop := make(chan bool)
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			command := scanner.Text()
+			if n.GetState() == raft.Leader {
+				success := raft.SendAppendEntries(n, rt, peerIDs, []raft.LogEntry{{Term: n.Term, Command: command}})
+				fmt.Println("submitted entry:", command, "success:", success)
+			} else {
+				fmt.Println("not leader, ignoring input")
+			}
+		}
+	}()
 
 	raft.RunNodeLifecycleGRPC(n, rt, peerIDs, stop)
 }
