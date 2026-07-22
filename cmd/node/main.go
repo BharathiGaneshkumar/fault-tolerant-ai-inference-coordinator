@@ -2,14 +2,18 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"raft-inference-coordinator/internal/coordinator"
 	"raft-inference-coordinator/internal/raft"
 	"raft-inference-coordinator/internal/transport"
 	pb "raft-inference-coordinator/proto"
@@ -89,4 +93,49 @@ func main() {
 	}()
 
 	raft.RunNodeLifecycleGRPC(n, rt, peerIDs, stop)
+
+	tracker := coordinator.NewHealthTracker()
+	// Register replicas here once Phase 4 exists; for now, hardcode test replicas if desired
+
+	pingerStop := make(chan bool)
+
+	go func() {
+		wasLeader := false
+		for {
+			isLeader := n.GetState() == raft.Leader
+			if isLeader && !wasLeader {
+				fmt.Println("node", *id, "became leader, starting health pinger")
+				go coordinator.RunHealthPinger(tracker, 1*time.Second, pingerStop)
+			}
+			if !isLeader && wasLeader {
+				fmt.Println("node", *id, "no longer leader, stopping health pinger")
+				pingerStop <- true
+				pingerStop = make(chan bool)
+			}
+			wasLeader = isLeader
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
+
+	http.HandleFunc("/infer", func(w http.ResponseWriter, r *http.Request) {
+		if n.GetState() != raft.Leader {
+			http.Error(w, "not leader", http.StatusServiceUnavailable)
+			return
+		}
+		replica, err := tracker.PickLeastLoadedReplica()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"routed_to": replica.ID,
+			"address":   replica.Address,
+		})
+	})
+
+	go func() {
+		httpPort := fmt.Sprintf(":%d", 8000+*id)
+		fmt.Println("node", *id, "HTTP API listening on", httpPort)
+		http.ListenAndServe(httpPort, nil)
+	}()
 }
