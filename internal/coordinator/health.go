@@ -62,3 +62,18 @@ func (h *HealthTracker) PickLeastLoadedReplica() (*Replica, error) {
 	}
 	return best, nil
 }
+func (h *HealthTracker) IncrementLoad(id int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if r, ok := h.Replicas[id]; ok {
+		r.ActiveRequests++
+	}
+}
+
+func (h *HealthTracker) DecrementLoad(id int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if r, ok := h.Replicas[id]; ok {
+		r.ActiveRequests--
+	}
+}

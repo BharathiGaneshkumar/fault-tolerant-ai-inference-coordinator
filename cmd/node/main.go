@@ -134,6 +134,10 @@ func main() {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
+		fmt.Println("leader routing request to replica", replica.ID, "at", replica.Address, "(active requests:", replica.ActiveRequests, ")")
+
+		tracker.IncrementLoad(replica.ID)
+		defer tracker.DecrementLoad(replica.ID)
 
 		body, _ := io.ReadAll(r.Body)
 
