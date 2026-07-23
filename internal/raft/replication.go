@@ -14,8 +14,8 @@ func (n *Node) HandleAppendEntries(msg AppendEntriesMsg) AppendEntriesReply {
 
 	n.mu.Lock()
 	n.LastHeartbeat = time.Now()
+	n.CurrentLeader = msg.LeaderID
 	n.mu.Unlock()
-
 	if msg.Term > n.Term {
 		n.BecomeFollower(msg.Term)
 	}

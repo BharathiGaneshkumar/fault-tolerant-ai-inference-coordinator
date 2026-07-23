@@ -120,7 +120,13 @@ func main() {
 
 	http.HandleFunc("/infer", func(w http.ResponseWriter, r *http.Request) {
 		if n.GetState() != raft.Leader {
-			http.Error(w, "not leader", http.StatusServiceUnavailable)
+			leaderID := n.GetCurrentLeader()
+			if leaderID == 0 {
+				http.Error(w, "not leader, and no known leader yet", http.StatusServiceUnavailable)
+				return
+			}
+			leaderAddr := fmt.Sprintf("http://localhost:%d/infer", 8000+leaderID)
+			http.Redirect(w, r, leaderAddr, http.StatusTemporaryRedirect)
 			return
 		}
 		replica, err := tracker.PickLeastLoadedReplica()

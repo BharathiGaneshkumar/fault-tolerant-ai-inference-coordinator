@@ -27,6 +27,7 @@ type Node struct {
 	mu            sync.Mutex
 	LastHeartbeat time.Time
 	PersistPath   string
+	CurrentLeader int
 }
 
 // every node that we create nneds to first be a follower and start with term 0 and size of the whole cluster
@@ -84,4 +85,9 @@ func (n *Node) ReceiveVote() bool {
 	n.VotesReceived++
 	majority := n.ClusterSize/2 + 1
 	return n.VotesReceived >= majority
+}
+func (n *Node) GetCurrentLeader() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.CurrentLeader
 }
