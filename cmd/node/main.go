@@ -2,9 +2,10 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
+	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -93,7 +94,9 @@ func main() {
 	}()
 
 	tracker := coordinator.NewHealthTracker()
-	// Register replicas here once Phase 4 exists; for now, hardcode test replicas if desired
+	tracker.RegisterReplica(1, "localhost:9001")
+	tracker.RegisterReplica(2, "localhost:9002")
+	tracker.RegisterReplica(3, "localhost:9003")
 
 	pingerStop := make(chan bool)
 
@@ -125,10 +128,18 @@ func main() {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"routed_to": replica.ID,
-			"address":   replica.Address,
-		})
+
+		body, _ := io.ReadAll(r.Body)
+
+		resp, err := http.Post("http://"+replica.Address+"/generate", "application/json", bytes.NewReader(body))
+		if err != nil {
+			http.Error(w, "replica unreachable: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		w.Write(respBody)
 	})
 
 	go func() {
