@@ -1,0 +1,12 @@
+FROM golang:1.26-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o /coordinator ./cmd/node
+
+FROM alpine:latest
+WORKDIR /app
+COPY --from=builder /coordinator /app/coordinator
+EXPOSE 50051 8001
+ENTRYPOINT ["/app/coordinator"]
