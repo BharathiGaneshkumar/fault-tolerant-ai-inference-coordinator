@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Fault-tolerant AI inference coordinator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+	body {
+		font-family: 'Sora', sans-serif;
+		background: #0d0b16;
+		color: #e8e3f5;
+		margin: 0;
+		font-size: 16px;
+		display: flex;
+	}
+	.sidebar {
+		width: 190px;
+		min-width: 190px;
+		background: #100e1a;
+		padding: 24px 0;
+		border-right: 0.5px solid #2c2540;
+		height: 100vh;
+		position: sticky;
+		top: 0;
+	}
+	.sidebar-item {
+		padding: 12px 24px;
+		font-size: 15px;
+		color: #9d8bc4;
+		cursor: pointer;
+		border-left: 3px solid transparent;
+	}
+	.sidebar-item.active { color: #e8e3f5; font-weight: 500; border-left: 3px solid #b8a0f0; background: #171325; }
+	.main { flex: 1; padding: 28px 32px; min-width: 0; }
+	.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+	.title { font-size: 25px; font-weight: 600; color: #d4c5f9; }
+	.subtitle { font-size: 14px; color: #9d8bc4; }
+	.stability { display: flex; align-items: center; gap: 10px; font-size: 16px; color: #d8d8e8; }
+	.heart { width: 20px; height: 20px; display: inline-block; animation: beat 1.1s ease-in-out infinite; }
+	.heart svg { width: 100%; height: 100%; }
+	@keyframes beat {
+		0%, 100% { transform: scale(1); }
+		15% { transform: scale(1.3); }
+		30% { transform: scale(1); }
+		45% { transform: scale(1.18); }
+		60% { transform: scale(1); }
+	}
+	.heart.broken { animation: none; opacity: 0.5; }
+	.section-intro { font-size: 14px; color: #7a6a9a; margin-bottom: 20px; max-width: 640px; }
+	.tab-content { display: none; }
+	.tab-content.active { display: block; }
+	.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+	.stat-card { background: #171325; border-radius: 12px; padding: 18px; border: 0.5px solid #2c2540; }
+	.stat-label { font-size: 14px; color: #9d8bc4; margin-bottom: 6px; }
+	.stat-value { font-size: 27px; font-weight: 600; color: #d4c5f9; }
+	.section-label { font-size: 16px; color: #c9c0e0; margin-bottom: 12px; font-weight: 500; }
+	.node-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+	.node-card { background: #171325; border-radius: 14px; padding: 18px; border: 0.5px solid #2c2540; }
+	.node-card.leader { border: 2px solid #d8d8e8; box-shadow: 0 0 20px rgba(216,216,232,0.35), 0 0 4px rgba(230,230,240,0.5); }
+	.node-card.unreachable { border: 2px solid #d98a8a; }
+	.node-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+	.node-name { font-size: 18px; }
+	.badge { font-size: 13px; padding: 3px 10px; border-radius: 7px; }
+	.badge.leader { background: rgba(216,216,232,0.18); color: #e6e1f0; }
+	.badge.follower { background: #211c33; color: #9d8bc4; }
+	.badge.unreachable { background: rgba(217,138,138,0.15); color: #d98a8a; }
+	.node-meta { font-size: 14px; color: #9d8bc4; }
+	.load-bars { background: #171325; border-radius: 14px; padding: 18px 22px 12px; border: 0.5px solid #2c2540; display: flex; align-items: flex-end; gap: 30px; height: 110px; }
+	.bar-col { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
+	.bar { width: 100%; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #c9b8f5, #8a6fd4); transition: height 0.4s ease; }
+	.bar.healthy-glow { box-shadow: 0 0 12px rgba(201,184,245,0.5); }
+	.bar.dead { background: #3a2626; }
+	.bar-label { font-size: 13px; color: #7a6a9a; }
+	.timeline { background: #171325; border-radius: 14px; padding: 18px; border: 0.5px solid #2c2540; display: flex; gap: 0; }
+	.tl-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+	.tl-bar { width: 100%; height: 8px; background: #2c2540; }
+	.tl-bar.current { background: #d8cbf7; box-shadow: 0 0 8px rgba(216,203,247,0.5); }
+	.tl-label { font-size: 12px; color: #7a6a9a; }
+	.tl-node { font-size: 13px; color: #9d8bc4; }
+	.log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+	.log-box { background: #171325; border-radius: 14px; padding: 14px 16px; border: 0.5px solid #2c2540; height: 380px; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 8px; }
+	.log-entry { font-size: 13px; color: #9d8bc4; }
+	.log-time { color: #5a5a80; margin-right: 8px; }
+	.log-entry.leader-event { color: #d4c5f9; }
+	.log-entry.danger-event { color: #d98a8a; }
+	.log-entry.info-event { color: #7a6a9a; }
+	.log-entry.route-event { color: #a8c9e8; }
+	.chart-box { background: #171325; border-radius: 14px; padding: 18px; border: 0.5px solid #2c2540; }
+</style>
+</head>
+<body>
+	<div class="sidebar">
+		<div class="sidebar-item active" data-tab="overview">Overview</div>
+		<div class="sidebar-item" data-tab="timeline">Timeline</div>
+		<div class="sidebar-item" data-tab="activity">Activity log</div>
+	</div>
+
+	<div class="main">
+		<div class="header">
+			<div>
+				<div class="title">Fault-tolerant AI inference coordinator</div>
+				<div class="subtitle">Raft consensus cluster, live status</div>
+			</div>
+			<div class="stability" id="stability">
+				<span class="heart" id="stability-heart">
+					<svg viewBox="0 0 24 24" fill="#d8d8e8" style="filter:drop-shadow(0 0 5px rgba(216,216,232,0.9))">
+						<path d="M12,21.35l-1.45-1.32C5.4,15.36,2,12.28,2,8.5 C2,5.42,4.42,3,7.5,3c1.74,0,3.41,0.81,4.5,2.09 C13.09,3.81,14.76,3,16.5,3 C19.58,3,22,5.42,22,8.5 c0,3.78-3.4,6.86-8.55,11.54L12,21.35z"/>
+					</svg>
+				</span>
+				<span id="stability-text">connecting...</span>
+			</div>
+		</div>
+
+		<div class="tab-content active" id="tab-overview">
+			<div class="section-intro">Live snapshot of the cluster: which coordinator currently holds leadership, how many replicas are healthy, and how load is spread across them right now.</div>
+			<div class="stat-grid" id="stats"></div>
+			<div class="section-label">Coordinator nodes</div>
+			<div class="node-grid" id="nodes"></div>
+			<div class="section-label">Replica load</div>
+			<div class="load-bars" id="bars"></div>
+		</div>
+
+		<div class="tab-content" id="tab-timeline">
+			<div class="section-intro">Tracks leadership changes over time (which node held each term) and how long each status check to the current leader is taking, sampled once per second.</div>
+			<div class="section-label">Term / leadership history</div>
+			<div class="timeline" id="term-timeline"></div>
+			<div class="section-label" style="margin-top:22px">Status check latency (ms)</div>
+			<div class="chart-box">
+				<svg viewBox="0 0 600 140" style="width:100%;height:140px" id="latency-chart"></svg>
+			</div>
+		</div>
+
+		<div class="tab-content" id="tab-activity">
+			<div class="section-intro">Two live feeds: leadership/health events on the left (elections, node or replica going down), and individual inference-request routing decisions on the right.</div>
+			<div class="log-grid">
+				<div>
+					<div class="section-label">Leader &amp; health events</div>
+					<div class="log-box" id="log-box-leader"></div>
+				</div>
+				<div>
+					<div class="section-label">Replica routing</div>
+					<div class="log-box" id="log-box-routing"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		const ports = [8001, 8002, 8003];
+		const stateNames = ["Follower", "Candidate", "Leader"];
+		let lastLeader = null;
+		let lastHealthy = {};
+		let lastActive = {};
+		let stableSince = Date.now();
+		let termHistory = [];
+		let leaderLog = [];
+		let routingLog = [];
+		let latencyHistory = [];
+		let firstPoll = true;
+
+		document.querySelectorAll(".sidebar-item").forEach(item => {
+			item.addEventListener("click", () => {
+				document.querySelectorAll(".sidebar-item").forEach(t => t.classList.remove("active"));
+				document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+				item.classList.add("active");
+				document.getElementById("tab-" + item.dataset.tab).classList.add("active");
+			});
+		});
+
+		function addLog(list, boxId, text, cls) {
+			list.push({ time: new Date().toLocaleTimeString(), text, cls: cls || "info-event" });
+			if (list.length > 40) list.shift();
+			const el = document.getElementById(boxId);
+			el.innerHTML = list.slice().reverse().map(e =>
+				`<div class="log-entry ${e.cls}"><span class="log-time">${e.time}</span>${e.text}</div>`
+			).join("");
+		}
+
+		function heartSvg(broken, glow) {
+			const fill = broken ? "#8a5a5a" : "#c9b8f5";
+			const style = glow ? 'style="filter:drop-shadow(0 0 4px rgba(220,215,235,0.7))"' : "";
+			const path = "M12,21.35l-1.45-1.32C5.4,15.36,2,12.28,2,8.5 C2,5.42,4.42,3,7.5,3c1.74,0,3.41,0.81,4.5,2.09 C13.09,3.81,14.76,3,16.5,3 C19.58,3,22,5.42,22,8.5 c0,3.78-3.4,6.86-8.55,11.54L12,21.35z";
+			if (broken) {
+				return `<svg ${style} viewBox="0 0 24 24"><path d="${path}" fill="${fill}" opacity="0.45"/><path d="M9,8l3,3.5-2,2.5,3,3.5" stroke="#0d0b16" stroke-width="1.3" fill="none"/></svg>`;
+			}
+			return `<svg ${style} viewBox="0 0 24 24" fill="${fill}"><path d="${path}"/></svg>`;
+		}
+
+		function renderLatencyChart() {
+			const svg = document.getElementById("latency-chart");
+			const recent = latencyHistory.slice(-15);
+			if (recent.length < 2) { svg.innerHTML = `<text x="20" y="70" fill="#7a6a9a" font-size="13">collecting samples...</text>`; return; }
+			const max = Math.max(50, ...recent);
+			const points = recent.map((v, i) => {
+				const x = 40 + (i / (recent.length - 1)) * 540;
+				const y = 110 - (v / max) * 90;
+				return `${x},${y}`;
+			}).join(" ");
+			svg.innerHTML = `
+				<line x1="35" y1="20" x2="600" y2="20" stroke="#2c2540" stroke-width="1"/>
+				<line x1="35" y1="65" x2="600" y2="65" stroke="#2c2540" stroke-width="1"/>
+				<line x1="35" y1="110" x2="600" y2="110" stroke="#2c2540" stroke-width="1"/>
+				<line x1="35" y1="15" x2="35" y2="120" stroke="#2c2540" stroke-width="1"/>
+				<text x="2" y="24" fill="#7a6a9a" font-size="11">${max}ms</text>
+				<text x="2" y="69" fill="#7a6a9a" font-size="11">${Math.round(max/2)}ms</text>
+				<text x="2" y="114" fill="#7a6a9a" font-size="11">0ms</text>
+				<text x="280" y="135" fill="#5a5a80" font-size="11" text-anchor="middle">most recent 15 samples, left to right</text>
+				<polyline points="${points}" fill="none" stroke="#c9b8f5" stroke-width="2"/>
+			`;
+		}
+
+		async function poll() {
+			const pollStart = Date.now();
+			let leaderData = null;
+			const nodeResults = [];
+
+			for (const port of ports) {
+				try {
+					const resp = await fetch(`http://localhost:${port}/status`, { signal: AbortSignal.timeout(800) });
+					const data = await resp.json();
+					nodeResults.push({ port, data, ok: true });
+					if (stateNames[data.state] === "Leader") leaderData = data;
+				} catch (e) {
+					nodeResults.push({ port, ok: false });
+				}
+			}
+
+			if (leaderData) {
+				latencyHistory.push(Date.now() - pollStart);
+				if (latencyHistory.length > 30) latencyHistory.shift();
+			}
+			renderLatencyChart();
+
+			if (firstPoll) {
+				addLog(leaderLog, "log-box-leader", `Dashboard connected, watching ${ports.length} coordinator nodes`, "info-event");
+				firstPoll = false;
+			}
+
+			if (leaderData && leaderData.node_id !== lastLeader) {
+				stableSince = Date.now();
+				addLog(leaderLog, "log-box-leader", `Node ${leaderData.node_id} became leader (term ${leaderData.term})`, "leader-event");
+				termHistory.push({ term: leaderData.term, node: leaderData.node_id });
+				if (termHistory.length > 8) termHistory.shift();
+				lastLeader = leaderData.node_id;
+			}
+
+			nodeResults.forEach(n => {
+				if (!n.ok) addLog(leaderLog, "log-box-leader", `Node (port ${n.port}) unreachable`, "danger-event");
+			});
+
+			if (leaderData) {
+				leaderData.replicas.forEach(r => {
+					if (lastHealthy[r.id] !== undefined && lastHealthy[r.id] !== r.healthy) {
+						addLog(leaderLog, "log-box-leader", `Replica ${r.id} is now ${r.healthy ? "healthy" : "unhealthy"}`, r.healthy ? "info-event" : "danger-event");
+					}
+					lastHealthy[r.id] = r.healthy;
+
+					if (lastActive[r.id] !== undefined && r.active_requests > lastActive[r.id]) {
+						addLog(routingLog, "log-box-routing", `Request routed to replica ${r.id} (${r.active_requests} active)`, "route-event");
+					}
+					lastActive[r.id] = r.active_requests;
+				});
+			}
+
+			const stableSecs = Math.floor((Date.now() - stableSince) / 1000);
+			document.getElementById("stability-text").textContent = leaderData ? `stable for ${stableSecs}s` : "no leader";
+			document.getElementById("stability-heart").classList.toggle("broken", !leaderData);
+
+			document.getElementById("stats").innerHTML = `
+				<div class="stat-card"><div class="stat-label">Leader</div><div class="stat-value">${leaderData ? "Node " + leaderData.node_id : "—"}</div></div>
+				<div class="stat-card"><div class="stat-label">Term</div><div class="stat-value">${leaderData ? leaderData.term : "—"}</div></div>
+				<div class="stat-card"><div class="stat-label">Healthy replicas</div><div class="stat-value">${leaderData ? leaderData.replicas.filter(r=>r.healthy).length + " / " + leaderData.replicas.length : "—"}</div></div>
+				<div class="stat-card"><div class="stat-label">Nodes online</div><div class="stat-value">${nodeResults.filter(n=>n.ok).length} / ${ports.length}</div></div>
+			`;
+
+			document.getElementById("nodes").innerHTML = nodeResults.map(n => {
+				if (!n.ok) {
+					return `<div class="node-card unreachable"><div class="node-top"><span class="node-name">Node (port ${n.port})</span><span class="badge unreachable">unreachable</span></div><div class="node-meta">connection failed</div></div>`;
+				}
+				const stateName = stateNames[n.data.state];
+				const cls = stateName === "Leader" ? "leader" : "";
+				const badgeCls = stateName === "Leader" ? "leader" : "follower";
+				return `<div class="node-card ${cls}"><div class="node-top"><span class="node-name">Node ${n.data.node_id}</span><span class="badge ${badgeCls}">${stateName.toLowerCase()}</span></div><div class="node-meta">term ${n.data.term} · port ${n.port}</div></div>`;
+			}).join("");
+
+			const barsEl = document.getElementById("bars");
+			if (leaderData && leaderData.replicas.length) {
+				const maxLoad = Math.max(1, ...leaderData.replicas.map(r => r.active_requests));
+				barsEl.innerHTML = leaderData.replicas.map(r => {
+					const heightPx = r.healthy ? Math.max(8, (r.active_requests / maxLoad) * 70) : 8;
+					return `<div class="bar-col">
+						<span class="heart ${r.healthy ? '' : 'broken'}" style="width:18px;height:18px">${heartSvg(!r.healthy, r.healthy)}</span>
+						<div class="bar ${r.healthy ? 'healthy-glow' : 'dead'}" style="height:${heightPx}px"></div>
+						<div class="bar-label">R${r.id} · ${r.healthy ? r.active_requests : 'down'}</div>
+					</div>`;
+				}).join("");
+			} else {
+				barsEl.innerHTML = `<div style="color:#7a6a9a;font-size:14px">no replica data yet</div>`;
+			}
+
+			document.getElementById("term-timeline").innerHTML = termHistory.length ? termHistory.map((t, i) => `
+				<div class="tl-col">
+					<div class="tl-label">t${t.term}</div>
+					<div class="tl-bar ${i === termHistory.length - 1 ? 'current' : ''}"></div>
+					<div class="tl-node">Node ${t.node}</div>
+				</div>
+			`).join("") : `<div style="color:#7a6a9a;font-size:14px">no leadership changes observed yet</div>`;
+		}
+
+		poll();
+		setInterval(poll, 1000);
+	</script>
+</body>
+</html>

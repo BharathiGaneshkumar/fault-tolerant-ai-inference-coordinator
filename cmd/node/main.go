@@ -154,6 +154,7 @@ func main() {
 		w.Write(respBody)
 	})
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		replicas := tracker.GetAllReplicas()
 		replicaList := make([]map[string]interface{}, 0)
 		for _, rep := range replicas {
