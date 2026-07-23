@@ -8,5 +8,7 @@ RUN go build -o /coordinator ./cmd/node
 FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /coordinator /app/coordinator
+COPY deploy/docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 EXPOSE 50051 8001
-ENTRYPOINT ["/app/coordinator"]
+ENTRYPOINT ["/app/entrypoint.sh"]
