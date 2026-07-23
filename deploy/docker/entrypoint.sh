@@ -14,4 +14,4 @@ for i in 0 1 2; do
 	fi
 done
 
-exec /app/coordinator -id="$NODE_ID" -port=50051 -peers="$PEERS" -clustersize=3
+exec /app/coordinator -id="$NODE_ID" -port=50051 -peers="$PEERS" -clustersize=3 -replicas="replica-0.replica:9001,replica-1.replica:9001,replica-2.replica:9001"

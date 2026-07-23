@@ -28,6 +28,8 @@ func main() {
 	port := flag.String("port", "50051", "port to listen on")
 	peersFlag := flag.String("peers", "", "comma-separated list of id=host:port for other nodes")
 	clusterSize := flag.Int("clustersize", 3, "total cluster size")
+	replicaAddrs := flag.String("replicas", "localhost:9001,localhost:9002,localhost:9003", "comma-separated replica addresses")
+	flag.Parse()
 	flag.Parse()
 
 	if *id == 0 {
@@ -93,11 +95,11 @@ func main() {
 			}
 		}
 	}()
-
 	tracker := coordinator.NewHealthTracker()
-	tracker.RegisterReplica(1, "localhost:9001")
-	tracker.RegisterReplica(2, "localhost:9002")
-	tracker.RegisterReplica(3, "localhost:9003")
+	addrs := strings.Split(*replicaAddrs, ",")
+	for i, addr := range addrs {
+		tracker.RegisterReplica(i+1, addr)
+	}
 
 	pingerStop := make(chan bool)
 

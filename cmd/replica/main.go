@@ -32,6 +32,7 @@ var (
 func main() {
 	port := flag.String("port", "9001", "port to listen on")
 	model := flag.String("model", "llama3.2:1b", "ollama model name")
+	ollamaAddr := flag.String("ollama", "localhost:11434", "ollama address")
 	flag.Parse()
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +61,7 @@ func main() {
 		ollamaReq := OllamaRequest{Model: *model, Prompt: reqBody.Prompt, Stream: false}
 		reqJSON, _ := json.Marshal(ollamaReq)
 
-		resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewBuffer(reqJSON))
+		resp, err := http.Post("http://"+*ollamaAddr+"/api/generate", "application/json", bytes.NewBuffer(reqJSON))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

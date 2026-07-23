@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: replica
+spec:
+  serviceName: replica
+  replicas: 3
+  selector:
+    matchLabels:
+      app: replica
+  template:
+    metadata:
+      labels:
+        app: replica
+    spec:
+      containers:
+      - name: replica
+        image: raft-replica:latest
+        imagePullPolicy: IfNotPresent
+        args:
+        - "-port=9001"
+        - "-ollama=host.docker.internal:11434"
+        ports:
+        - containerPort: 9001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: replica
+spec:
+  clusterIP: None
+  selector:
+    app: replica
+  ports:
+  - port: 9001
+    name: http
