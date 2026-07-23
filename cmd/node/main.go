@@ -126,6 +126,7 @@ func main() {
 				return
 			}
 			leaderAddr := fmt.Sprintf("http://localhost:%d/infer", 8000+leaderID)
+			fmt.Println("node", *id, "received request but not leader, redirecting to leader", leaderID)
 			http.Redirect(w, r, leaderAddr, http.StatusTemporaryRedirect)
 			return
 		}

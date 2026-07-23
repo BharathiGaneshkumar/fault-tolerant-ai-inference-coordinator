@@ -1,1 +1,1 @@
-{"term":3,"voted_for":1,"log":[{"Term":1,"Command":"curl -X POST http://localhost:800\u003cleader-id\u003e/infer -d '{\"prompt\":\"Say hello in exactly 5 words\"}'"}]}
+{"term":5,"voted_for":2,"log":[{"Term":1,"Command":"curl -X POST http://localhost:800\u003cleader-id\u003e/infer -d '{\"prompt\":\"Say hello in exactly 5 words\"}'"},{"Term":3,"Command":"x=1"}]}
