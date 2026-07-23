@@ -122,6 +122,7 @@ func main() {
 	}()
 
 	http.HandleFunc("/infer", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if n.GetState() != raft.Leader {
 			leaderID := n.GetCurrentLeader()
 			if leaderID == 0 {
