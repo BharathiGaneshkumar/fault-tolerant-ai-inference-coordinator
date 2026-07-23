@@ -77,3 +77,12 @@ func (h *HealthTracker) DecrementLoad(id int) {
 		r.ActiveRequests--
 	}
 }
+func (h *HealthTracker) GetAllReplicas() []*Replica {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var all []*Replica
+	for _, r := range h.Replicas {
+		all = append(all, r)
+	}
+	return all
+}

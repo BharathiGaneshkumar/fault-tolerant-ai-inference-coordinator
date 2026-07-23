@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -151,6 +152,26 @@ func main() {
 
 		respBody, _ := io.ReadAll(resp.Body)
 		w.Write(respBody)
+	})
+	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		replicas := tracker.GetAllReplicas()
+		replicaList := make([]map[string]interface{}, 0)
+		for _, rep := range replicas {
+			replicaList = append(replicaList, map[string]interface{}{
+				"id":              rep.ID,
+				"address":         rep.Address,
+				"healthy":         rep.Healthy,
+				"active_requests": rep.ActiveRequests,
+			})
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"node_id":        *id,
+			"state":          n.GetState(),
+			"term":           n.Term,
+			"current_leader": n.GetCurrentLeader(),
+			"replicas":       replicaList,
+		})
 	})
 
 	go func() {
